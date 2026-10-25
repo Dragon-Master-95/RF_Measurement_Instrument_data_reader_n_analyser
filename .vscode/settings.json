@@ -1,0 +1,5 @@
+{
+    "python.defaultInterpreterPath": "/media/shenron/data2/anaconda2026-07-1/bin/python",
+    "python-envs.defaultEnvManager": "ms-python.python:conda",
+    "python-envs.defaultPackageManager": "ms-python.python:conda"
+}

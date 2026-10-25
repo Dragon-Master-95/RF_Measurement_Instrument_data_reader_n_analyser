@@ -1,0 +1,6 @@
+numpy
+pandas
+matplotlib>=3.5
+seaborn
+PySide6          # or PySide2 / PyQt5 (the GUI picks whichever is installed)
+pytest           # only for running tests
