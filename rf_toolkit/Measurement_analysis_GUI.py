@@ -62,7 +62,7 @@ DEFAULT_FORMULAS = {
 GENERAL_INFO_KEYS = ["file_path", "manufacturer", "model_number", "serial_number", "instrument_type",
                      "file_format", "measurement_time", "n_points", "n_valid_points", "amplitude_unit"]
 # Large keys hidden unless 'Show raw parameters' is ticked
-RAW_INFO_KEYS = {"header", "raw_parameters", "comments"}
+RAW_INFO_KEYS = {"header", "raw_parameters", "comments", "sections", "kcd_sections"}
 
 
 
@@ -516,7 +516,7 @@ class MeasurementAnalysisGUI(QtWidgets.QMainWindow):
         </ol>
         <h3>Variables</h3>
         <p>VNA: <code>s11_log_mag, s11_phase, s21_log_mag, s21_phase, s12_…, s22_…</code>
-        (dB and degrees)<br>
+        (dB and degrees), <code>s21_group_delay</code> (seconds, Measall group-delay files)<br>
         Spectrum analyser: <code>trace1, trace2, …</code> (power, dB units such as dBm)<br>
         Frequency: <code>freq</code> (Hz), <code>freq_kHz</code>, <code>freq_MHz</code>, <code>freq_GHz</code><br>
         Constants: {consts}</p>

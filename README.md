@@ -12,6 +12,9 @@ formulas in a GUI or from Python.
 | Anritsu | VNA Master MS2024B | `.s1p` – `.s4p` with Anritsu header | `AnritsuTouchstoneReader` |
 | Anritsu | VNA Master MS2024B | `.mna` (native) | `AnritsuMnaReader` |
 | Anritsu | Spectrum Master MS2720T | `.spa` (native) | `AnritsuSpaReader` |
+| Measall | KC901S+ (KC901 series) | `.ini` full sweep (S11 loss, group delay; S21 loss assumed) | `MeasallIniReader` |
+| Measall | KC901S+ | `.kcd` state file (uses the companion `.ini`) | `MeasallKcdReader` |
+| Measall | KC901S+ | `.s2p` with Measall `!` header | `MeasallTouchstoneReader` |
 
 ---
 
@@ -67,6 +70,7 @@ rf_toolkit/                    All code (Python package)
         utils.py               Shared parsing helpers + standard column naming
         touchstone.py          Generic Touchstone reader
         anritsu.py             Anritsu .s2p header, .mna, .spa
+        measall.py             Measall KC901 .ini, .kcd, .s2p header
 tests/test_toolkit.py          Reads every file in Data_files/ + analysis tests
 Data_files/<Maker>/<Model>/    Sample measurement files (used by the tests)
 ```
@@ -93,6 +97,7 @@ produce them; do not invent new column names for the same quantity.
 |---|---|---|
 | all | `Frequency_Hz` (always first) | Hz |
 | VNA | `s11_log_mag`, `s11_phase`, `s21_log_mag`, `s21_phase`, `s12_…`, `s22_…` | dB (20·log10), degrees |
+| VNA, group delay measured by the instrument | `s21_group_delay` | seconds |
 | VNA, same S-parameter on two traces (.mna) | second one: `s11_tr3_log_mag`, `s11_tr3_phase` | |
 | SA | `trace1`, `trace2`, … (trace A → `trace1`) | power, dB units in `info["amplitude_unit"]` (e.g. dBm) |
 
@@ -149,7 +154,8 @@ suffix (e.g. `ifbw_code`) so nobody mistakes them for real values.
 | Change the cross-file frequency grid / interpolation | `_analyse_combined()` / `_interpolate()` in `rf_toolkit/Measurement_analysis.py` |
 | Change the CSV format | `save_results_csv()` / `results_to_dataframe()` in `rf_toolkit/Measurement_analysis.py` |
 | Change where sample data lives | `rf_toolkit/paths.py` |
-| Add sample files for testing | `Data_files/<Maker>/<Model>/`; the tests pick them up automatically |
+| Add sample files for testing | anywhere under `Data_files/` (sub-folders allowed); the tests read every file whose extension has a reader |
+| Add a Measall measurement mode | `INI_MODES` in `rf_toolkit/instrument_readers/measall.py` |
 
 The GUI file dialog filter, the help page's "Supported files" list and the
 start-up log line are built from the reader registry, so new readers appear in
@@ -376,6 +382,28 @@ Markers: `MKR_SPA_FREQM` in mHz. Limits: `LIMIT_POINTn=<freq mHz> <level×1000> 
 
 ---
 
+### Measall KC901 (`.ini`, `.kcd`, `.s2p`)
+Each saved measurement is a group of files with the same name, e.g.
+`S11_Loss_00_01_10 23_30_07.{ini,kcd,bmp}`. The name holds the instrument clock as
+`YY_MM_DD HH_MM_SS` → `info["measurement_time"]` (the sample files say year 2000, so the
+instrument clock was probably never set).
+
+* `.ini` (the data): INI sections `[Mode] Name=<mode>`, `[Freq] CENT=…Hz SPAN=…Hz`, `[CAL]`,
+  `[SweepPoint] Point=N`, then `[Curve]` with one point per line:
+  `F:<Hz>,<value>` (S11/S21 loss, dB) or `F: <Hz>,delay:<value>s` (group delay, seconds).
+  Modes map to columns via `INI_MODES` (`S11_LOSS` → `s11_log_mag`, `group delay` →
+  `s21_group_delay`). The file holds N+1 points (Point=3150 → 3151 rows).
+  Group-delay files write the **same frequency on every line**; the reader then rebuilds a
+  linear axis from CENT ± SPAN/2 (it matches the S11 files' grid) and adds a warning.
+* `.kcd` (instrument state for recall): same INI layout with numeric codes (`Mode Name=0/1`,
+  `CAL=3`) and `[Curve_Max]` / `[Curve_Min]` = the on-screen envelope (~450 points, empty for
+  group delay). The reader uses the companion `.ini` when it exists; otherwise the max
+  envelope with a warning.
+* `.s2p`: normal Touchstone (`# Hz S RI R 50`) with the INI sections as `!` comments
+  (detected by `![Freq]` + `!CENT=`). Unused parameters are written as 0 → listed in
+  `placeholder_parameters`.
+* `.bmp`: screenshots, not read.
+
 ## 9. Known limitations / open items
 
 * `.mna` binary calibration coefficients are not decoded; cal settings are numeric codes.
@@ -385,6 +413,10 @@ Markers: `MKR_SPA_FREQM` in mHz. Limits: `LIMIT_POINTn=<freq mHz> <level×1000> 
   `rbw_setting_Hz` name). Check against the instrument before relying on them.
 * `lwafinal.mna` declares 1895 points but only the first 201 contain data; the reader
   adds a warning for files like this.
+* Measall: the model is not stored in the files (`model_number` is `None`); only the modes in
+  the sample files (`S11_LOSS`, `group delay`, Touchstone S21) are verified. Other modes get a
+  column named after the mode and a warning; add them to `INI_MODES`.
+* Anritsu `.csv` exports (e.g. `anshu.csv`) are not read yet.
 * Touchstone v2 keywords (`[Version] 2.0`, …) are not supported yet; add them in
   `touchstone.py`.
 * Several `info` fields are commented out in `anritsu.py` (firmware, raw parameters, …).

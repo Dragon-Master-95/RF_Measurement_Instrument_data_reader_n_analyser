@@ -118,7 +118,7 @@ def _plan(results, mode):
             for j, n in enumerate(r.array_names):
                 label = n if single_file else (r.display_name if len(names) == 1 else f"{r.display_name}: {n}")
                 series.append((r, n, label, j if single_file else i, 0 if single_file else j))
-        title = names[0] if len(names) == 1 else "Analysis results"
+        title = names[0] if len(names) == 1 else " "
         return [("plot", title, series)]
     if mode == 1:
         return [(r.display_name, r.display_name,

@@ -16,8 +16,12 @@ from rf_toolkit.instrument_readers import base as reader_base
 from rf_toolkit.Measurement_analysis import MeasurementAnalyzer, parse_formulas
 from rf_toolkit.Measurement_file_reader import read_measurement_file
 
-DATA_FILES = sorted(glob.glob(os.path.join(ROOT, "Data_files", "*", "*", "*")))
-VNA_COLUMN = r"^(Frequency_Hz|s\d\d(_tr\d+)?_(log_mag|phase))$"
+from rf_toolkit.instrument_readers import supported_extensions
+
+# every file under Data_files/ that has a registered reader (screenshots etc. are skipped)
+DATA_FILES = sorted(p for p in glob.glob(os.path.join(ROOT, "Data_files", "**", "*"), recursive=True)
+                    if os.path.isfile(p) and os.path.splitext(p)[1].lower() in supported_extensions())
+VNA_COLUMN = r"^(Frequency_Hz|s\d\d(_tr\d+)?_(log_mag|phase|group_delay))$"
 SA_COLUMN = r"^(Frequency_Hz|trace\d+)$"
 
 
@@ -158,3 +162,29 @@ def test_plot_style_overrides_and_json_roundtrip(tmp_path):
     path = tmp_path / "style.json"
     style.save(path)
     assert PlotStyle.load(path) == style
+
+
+# ---- Measall KC901 ---------------------------------------------------------------------
+MEASALL = os.path.join(ROOT, "Data_files", "Measall", "KC901S+")
+
+
+@pytest.mark.skipif(not os.path.isdir(MEASALL), reason="Measall sample data not present")
+def test_measall_group_delay_axis_rebuilt_and_kcd_uses_ini(tmp_path):
+    import shutil
+    ini = glob.glob(os.path.join(MEASALL, "S21_Delay", "*.ini"))[0]
+    m = read_measurement_file(ini)
+    assert list(m.data.columns) == ["Frequency_Hz", "s21_group_delay"]
+    assert m.data["Frequency_Hz"].iloc[[0, -1]].tolist() == [15e6, 1e9]
+    assert any("rebuilt" in w for w in m.info["warnings"])
+    assert m.info["manufacturer"] == "Measall" and m.info["measurement_time"].year == 2000
+
+    s11 = read_measurement_file(glob.glob(os.path.join(MEASALL, "S11_Loss", "*.ini"))[0]).data
+    assert np.allclose(m.data["Frequency_Hz"], s11["Frequency_Hz"], atol=1)
+
+    kcd = glob.glob(os.path.join(MEASALL, "S11_Loss", "*.kcd"))[0]
+    assert read_measurement_file(kcd).data.shape == s11.shape          # full data via .ini
+    alone = tmp_path / os.path.basename(kcd)
+    shutil.copy(kcd, alone)
+    env = read_measurement_file(str(alone))                            # no .ini: envelope
+    assert list(env.data.columns) == ["Frequency_Hz", "s11_log_mag"] and len(env.data) < len(s11)
+    assert any("envelope" in w for w in env.info["warnings"])
